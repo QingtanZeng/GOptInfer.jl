@@ -249,25 +249,48 @@ function main()
     mkpath(output_dir)  # 如果文件夹不存在会自动创建
     for i in 1:2:length(history)
         X = history[i]
-        meanval=mean(X, dims=1)
-        stdval=std(X, dims=1)
-        xleft=meanval[1]-2*stdval[1]
-        xright=meanval[1]+3*stdval[1]
-        yleft=meanval[2]-2*stdval[2]
-        yright=meanval[2]+3*stdval[2]
+        # meanval=mean(X, dims=1)
+        # stdval=std(X, dims=1)
+        # xleft=meanval[1]-2*stdval[1]
+        # xright=meanval[1]+3*stdval[1]
+        # yleft=meanval[2]-2*stdval[2]
+        # yright=meanval[2]+3*stdval[2]
 
-        # 3. 创建绘图对象
+        # # 3. 创建绘图对象
+        # p = scatter(
+        #     X[:, 1], X[:, 2], 
+        #     color = :purple, 
+        #     label = "Particles",
+        #     # 视窗跟随粒子群移动
+        #     xlims = (xleft, xright), 
+        #     ylims = (yleft, yright),
+        #     aspect_ratio = :equal,
+        #     title = "SVGD Optimization (Iter $i)",
+        #     markerstrokewidth = 0, markersize = 3, alpha = 0.7
+        # )
+
+        # --- 修改方案 B：动态视窗，但强制以粒子均值为中心 (推荐用于观察局部细节) ---
+        mean_x, mean_y = mean(X[:,1]), mean(X[:,2])
+        # 找出最大的扩散范围，保证视窗是正方形的，且留有足够余地
+        # 设定最小视窗半径为 1.0，防止收敛后视窗缩得太小看不清直线
+        radius = max(3 * maximum(std(X, dims=1)), 1.0) 
+        
+        xleft, xright = mean_x - radius, mean_x + radius
+        yleft, yright = mean_y - radius, mean_y + radius
+    
         p = scatter(
             X[:, 1], X[:, 2], 
             color = :purple, 
             label = "Particles",
-            # 视窗跟随粒子群移动
             xlims = (xleft, xright), 
             ylims = (yleft, yright),
-            aspect_ratio = :equal,
-            title = "SVGD Optimization (Iter $i)",
-            markerstrokewidth = 0, markersize = 3, alpha = 0.7
+            aspect_ratio = :equal, # 保持 x 和 y 轴比例 1:1
+            title = "SVGD Iter $i",
+            markerstrokewidth = 0, markersize = 4, alpha = 0.8
         )
+
+        # 叠加目标中心 (1,1)
+        scatter!([1], [1], color=:red, shape=:star5, ms=10, label="True Solution (1,1)")
 
         # 4. [关键步骤] 叠加约束线和交点
         # 注意：传入的 range 只需要覆盖当前的 xleft/xright 即可
@@ -279,6 +302,7 @@ function main()
         savefig(p, filename)
         
         print("\r正在保存: $filename")
+    
     end
 end
 
