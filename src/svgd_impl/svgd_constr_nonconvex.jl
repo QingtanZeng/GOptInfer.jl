@@ -70,17 +70,44 @@ function constraint_correction(X, A, b)
     corrections = -(pinv(A) * residuals')'
     return corrections
 end
+"""
+计算 f(x,y) = ((x-1)^2 + y^2) * (x^2 + (y-1)^2) 的负梯度
+输入: X (N x 2 矩阵)
+输出: -∇f (N x 2 矩阵)
+"""
+function neg_gradient_f(X)
+    # 提取向量 (使用视图 @view 避免复制，或直接切片)
+    x = X[:, 1]
+    y = X[:, 2]
+
+    # 1. 计算公共项 u 和 v
+    # u = (x-1)^2 + y^2
+    u = (x .- 1).^2 .+ y.^2
+    # v = x^2 + (y-1)^2
+    v = x.^2 .+ (y .- 1).^2
+
+    # 2. 计算偏导数 (应用积法则: (uv)' = u'v + uv')
+    # df/dx = v * 2(x-1) + u * 2x
+    grad_x = 2 .* (v .* (x .- 1) .+ u .* x)
+    
+    # df/dy = v * 2y + u * 2(y-1)
+    grad_y = 2 .* (v .* y .+ u .* (y .- 1))
+
+    # 3. 组合并取负
+    # 返回 N x 2 矩阵
+    return -[grad_x grad_y]
+end
 
 """
 SVGD Update Step
 对应算法 1 中的核心更新公式 [cite: 113]
 """
-function constrained_svgd_step(X, P, A, b, T, step_size, correction_strength=1.0)
+function constrained_svgd_step(X, P, A, b, step_size, correction_strength=1.0)
     n = size(X, 1)
     
     # 1. 计算 Score Function: ∇ log p(x) = - ∇ f(x)
     # 对于 f(x) = x^2, ∇ f(x) = 2x, 所以 score = -2x
-    score_val = -2/T .* X 
+    score_val = neg_gradient_f(X)
     
     # 2. 计算核矩阵和排斥力梯度
     Kxy, dx_kxy = proj_svgd_kernel(X)
@@ -89,6 +116,13 @@ function constrained_svgd_step(X, P, A, b, T, step_size, correction_strength=1.0
     # phi(x) = 1/n sum_j [ k(x_j, x) * score(x_j) + ∇_{x_j} k(x_j, x) ]
     # 矩阵乘法 Kxy * score_val 完成了对 score 的加权求和
     phi = (Kxy * score_val .+ dx_kxy) ./ n
+
+    # 简单的梯度裁剪：限制最大更新幅度
+    max_grad_norm = 10.0
+    grad_norms = sqrt.(sum(phi.^2, dims=2))
+    # 如果模长超过阈值，则缩放
+    clip_factor = min.(1.0, max_grad_norm ./ (grad_norms .+ 1e-8))
+    phi = phi .* clip_factor
 
     # 4. 投影梯度 (O-SVGD 核心步骤 [cite: 591])
     # 将更新方向投影到约束的切空间: P * phi
@@ -167,15 +201,14 @@ function main()
 
     # 1. 参数设置
     Random.seed!(42)
-    n_particles = 50
+    n_particles = 20
     dim = 2
-    n_iter = 50       # 可以适当增加迭代次数
-    step_size = 0.8   # 增加步长以便更快看到移动
-    Eqstep_size = 0.9
-    T=1
+    n_iter = 10       # 可以适当增加迭代次数
+    step_size = 0.3   # 增加步长以便更快看到移动
+    Eqstep_size = 0.7
 
     # 2. 初始化 (局部变量，类型稳定)
-    X = randn(n_particles, dim) .* 40 .+ kron(ones(n_particles, 1), [-15 -15]) 
+    X = randn(n_particles, dim) .* 5 .+ kron(ones(n_particles, 1), [-3 -3]) 
     history = []
     push!(history, copy(X))
     
@@ -193,10 +226,8 @@ function main()
         println("-"^50)
         println("Iter $i starts.")
         println("step_size: $step_size;  Eqstep_size: $Eqstep_size")
-        
-        T=max(0.95^(i-1), 0.5) 
 
-        X = constrained_svgd_step(X, P, A, b, T, step_size, Eqstep_size)
+        X = constrained_svgd_step(X, P, A, b, step_size, Eqstep_size)
 
         mean_i = mean(X, dims=1)
         std_i = std(X, dims=1)
@@ -205,10 +236,9 @@ function main()
 
         S=A*X'.-b
         pres_eq = norm(S)/(norm(b[1:2])*n_particles)
-        pres_eq_L = [norm(col) for col in eachcol(S)]/norm(b[1:2])
         pres_ineq = [norm(row) for row in eachrow(max.(0.0, 0 .- X')) ]./n_particles
         println("Mean Equality Error: $pres_eq;  Mean Inequality Error: $pres_ineq")
-        Eqstep_size = min(max(0.5,pres_eq) ,0.9)
+        Eqstep_size = min(max(0.1,pres_eq) ,0.9)
 
 
         meanchangeper = norm(mean_i - mean_i_lst) / norm(mean_i_lst)
@@ -216,14 +246,14 @@ function main()
         println("Mean Change Percent: $meanchangeper;  Std Change Percent: $stdchangeper")
 
         stdchangeper = norm(std_i - std_i_lst) / max(norm(std_i_lst),1)
-        if(max(meanchangeper, stdchangeper) < 0.03 &&  maximum(pres_eq_L) < 3e-2 )
+        if(max(meanchangeper, stdchangeper) < 0.05 &&  pres_eq < 3e-2 )
             println("收敛！")
             break;
         end
 
         meanchangeper = norm(mean_i - mean_i_lst) / max(norm(mean_i_lst),1)
         stdchangeper = norm(std_i - std_i_lst) / max(norm(std_i_lst),1)
-        step_size = min(max(0.2, max(meanchangeper, stdchangeper)*10),0.9)
+        step_size = min(max(0.1, max(meanchangeper, stdchangeper)*10),0.9)
 
         mean_i_lst = mean_i;
         std_i_lst = std_i;
@@ -245,9 +275,9 @@ function main()
     println("计算完成，正在生成 GIF...")
     # 4. 保存为 GIF 文件 (首次运行这一步可能需要几十秒编译 ffmpeg 接口)
     # 绘图步骤 (在内存中构建帧)
-    output_dir = "test/svgd_frames"
+    output_dir = "test/svgd_nonconvex"
     mkpath(output_dir)  # 如果文件夹不存在会自动创建
-    for i in 1:2:length(history)
+    for i in 1:3:length(history)
         X = history[i]
         meanval=mean(X, dims=1)
         stdval=std(X, dims=1)
@@ -272,7 +302,7 @@ function main()
         # 4. [关键步骤] 叠加约束线和交点
         # 注意：传入的 range 只需要覆盖当前的 xleft/xright 即可
         # 但为了简单，传一个足够大的固定范围覆盖全局即可，Plots 会自动裁剪
-        # plot_constraints!(A, b, (xleft-10, xright+10))
+        plot_constraints!(A, b, (xleft-10, xright+10))
 
         # 5. 保存
         filename = joinpath(output_dir, @sprintf("iter_%04d.png", i))
