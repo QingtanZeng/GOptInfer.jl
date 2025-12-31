@@ -1,23 +1,23 @@
 # Constrained Global Optimization through Stein Variational Inference
-*MultiModal, NonConvex-NonConnected-NonDifferentiable, Hard Constraints, GPU Acceleration. *
+*MultiModal, NonConvex-NonConnected-NonDifferentiable, Hard Constraints, GPU Acceleration.*
 
 ## Overview
-The repo serves the frontier tracking and implementation of <b>Optimization As Inference (GOptInfer)</b> at at principle level.
+The repo serves the frontier tracking and implementation of <b>Optimization As Inference (GOptInfer)</b> at a principle level.
 
 ## What is it?
-Traditional global optimization algorithms such as <b>particle swarm</b> has low sample efficiency. But <b>Bayesian Optimization</b> based on Bayesian Inference 
-give a perfect theoretical framework of "sampled global optimization", where <b>Variational Inference</b> plays a crucial role to 
+Traditional global optimization algorithms such as <b>particle swarm</b> have low sample efficiency. But <b>Bayesian Optimization</b> based on Bayesian Inference 
+gives a perfect theoretical framework of "sampled global optimization", where <b>Variational Inference</b> plays a crucial role in 
 reducing the calculation complexity of posterior distribution in Gaussian process regression. 
 
 <b>Stein Variational Inference</b> is general one of variational inference, originated from [1]. Its aim is to update 
 a set of distributions $q(x)$ (Particles) to approximate the target distribution $p(x)$ (Objective Function), 
 by minimizing Kullback-Leibler (KL) divergence between $q(x)$ and  $p(x)$.
 
-[😢 Fell dizzy ? Relax !!!]
+[😢 Feel dizzy ? Relax !!!]
 
 <img width="180" height="34" alt="image" src="https://github.com/user-attachments/assets/175219b6-6909-4326-9458-29df9f77c054" />
 
-Just remember that <b>objective function is inferred by updating a set of particles folowering a mysterious direction</b>.
+Just remember that <b>objective function is inferred by updating a set of particles following a mysterious direction</b>.
 
 <img width="400" height="61" alt="image" src="https://github.com/user-attachments/assets/bd9a0d1e-4188-4887-bfd6-d2067b40a36d" />
 
@@ -47,7 +47,7 @@ Many problems in upper-level domains starve for these advantages.
 ## What else?
 👉 <b>Hard Constraints</b>.
 
-Besides real-time, SVGD must be able to hanle with hard constraints from practical problem.
+Besides real-time, SVGD must be able to handle hard constraints from practical problems.
 
 ## How it works?
 see next.
@@ -66,17 +66,17 @@ The convergence process is shown below,
 - Converge to one/several local minima.</b>
 
 <p align="center">
-<img alt="Convergence of Paticles"
-    title="Convergence of Paticles"
+<img alt="Convergence of Particles"
+    title="Convergence of Particles"
     src="test/svgd_frames/Particles.jpg"
     width="800px" />
 </p>
 
-And the mean are accurate at the sole global minima (1,1), and maintain mutually exclusive distribution (STD==0.5) on the constrained line.
+And the mean is accurate at the sole global minimum (1,1), and maintains a mutually exclusive distribution (STD==0.5) on the constrained line.
 
 <p align="center">
-<img alt="Convergence of Paticles"
-    title="Convergence of Paticles"
+<img alt="Convergence of Particles"
+    title="Convergence of Particles"
     src="test/svgd_frames/convergence_plot.png"
     width="500px" />
 </p>
